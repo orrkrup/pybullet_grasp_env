@@ -58,6 +58,10 @@ class PandaRobot(object):
         self.next_torques = None
         self.last_gravity_comp = None
 
+        # Joint control gains for PD controller:
+        self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
+        self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
+
         # Gripper parameters
         self.finger_inds = self.movable_joints[-2:]
         self.open_finger_positions = self.joint_upper_bounds[-2:]
@@ -208,20 +212,29 @@ class PandaRobot(object):
 
         self.set_joints(joint_positions, max_force)
 
-    def set_joints(self, joint_positions: np.ndarray, max_force=None) -> None:
-        control_mode = p.POSITION_CONTROL
+    def set_joints(self, joint_positions, joint_velocities=None, max_force=None, control_mode=p.POSITION_CONTROL):
+
         if max_force is None:
             max_force = self.joint_torque_limits
-        # else:
-        #     max_force = np.minimum(np.abs(max_force), self.joint_torque_limits)
+
+        if joint_velocities is None:
+            joint_velocities = [0.01] * (self.n_movable_joints - 2) + [0.0, 0.0]
+
+        if p.PD_CONTROL == control_mode:
+            pg = self.kp
+            vg = self.kd
+        else:
+            pg = [0.01] * (self.n_movable_joints - 2) + [1., 1.]
+            vg = [0.8] * (self.n_movable_joints - 2) + [1., 1.]
+
         p.setJointMotorControlArray(self._robot_id,
                                     jointIndices=self.movable_joints,
                                     controlMode=control_mode,
                                     targetPositions=joint_positions,
-                                    targetVelocities=[0.01] * (self.n_movable_joints - 2) + [0.0, 0.0],
+                                    targetVelocities=joint_velocities,
                                     forces=max_force,
-                                    positionGains=[0.01] * (self.n_movable_joints - 2) + [1., 1.],
-                                    velocityGains=[0.8] * (self.n_movable_joints - 2) + [1., 1.],
+                                    positionGains=pg,
+                                    velocityGains=vg,
                                     physicsClientId=self.pcid)
 
     def inverse_kinematics(self, position: np.ndarray, orientation: np.ndarray = None, max_iter: int = 50) -> np.ndarray:

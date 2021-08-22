@@ -19,9 +19,6 @@ class GraspSimulation(BaseSimulation):
 
         # Controller Parameters
         self._max_move_steps = 500
-        self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
-        # self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
-        self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
         self.error_thresh = 0.005
 
         if imp_control:
@@ -249,23 +246,11 @@ class GraspSimulation(BaseSimulation):
         :param visualize_goal: whether to show a little red circle at current gripper target position
         :return bool: whether a collision has happened
         """
-        # if not self.imp_control:
-        #     return self.pos_step_to_state(state, max_iter=max_iter, eps=eps, stop_at_collision=stop_at_collision,
-        #                                   closed_gripper=closed_gripper)
-
         curr_pos, curr_orn = self.robot.get_ee_state()
         goal_pos = np.array(state[:3], dtype=float)
         goal_orn = state[3:7]
 
         max_iter = self._max_move_steps if max_iter is None else max_iter
-
-        # Create Polynomial Trajectory
-        curr_q, _ = self.robot.get_robot_state()
-        goal_q = np.array(self.robot.inverse_kinematics(goal_pos, goal_orn))
-        traj = [PolyTraj(q0, qf, max_iter *
-                         self._control_dt).get_q_qd(t=np.linspace(0, max_iter * self._control_dt, max_iter))
-                for q0, qf in zip(curr_q, goal_q)]
-        traj = [np.stack(a, axis=1) for a in zip(*traj)]
 
         if visualize_goal:
             vis = p.createVisualShape(p.GEOM_SPHERE, radius=0.01, rgbaColor=[1, 0, 0, 0.5],
@@ -274,14 +259,12 @@ class GraspSimulation(BaseSimulation):
         else:
             sid = None
 
-        if self.imp_control:
-            self.robot.set_torque_control()
+        self.robot.set_torque_control()
 
         error = np.linalg.norm(goal_pos - curr_pos)
         steps = 0
 
         while error > self.error_thresh:
-        # for _, targ_q_dot in zip(*traj):
 
             steps += 1
             if steps > max_iter:
@@ -291,44 +274,22 @@ class GraspSimulation(BaseSimulation):
             curr_pos, curr_orn = self.robot.get_ee_state()
 
             rel_vec = goal_pos - curr_pos
-            dist_to_goal = np.linalg.norm(rel_vec)
-            # step_size = np.minimum(eps / dist_to_goal, 1.0)
-            # rel_pos = rel_vec * step_size
-            # targ_pos = curr_pos + rel_pos
-            # targ_orn = p.getQuaternionSlerp(curr_orn, goal_orn, step_size)
+            error = np.linalg.norm(rel_vec)
 
             curr_q, q_dot = self.robot.get_robot_state()
-            # targ_q = np.array(self.robot.inverse_kinematics(targ_pos, targ_orn))
             targ_q = np.array(self.robot.inverse_kinematics(goal_pos, goal_orn))
-            # targ_q_dot = (self.robot.joint_vel_limits / 10. if 1.0 == step_size else np.zeros_like(q_dot))
             targ_q_dot = np.zeros_like(q_dot)
 
-            delta_q = targ_q - curr_q
-            delta_q_dot = q_dot - targ_q_dot
-            # delta_pos = (targ_pos - curr_pos).reshape([3, 1])
-            # delta_orn = quatdiff_in_euler(curr_orn, targ_orn).reshape([3, 1])
-            # error = np.asarray([np.linalg.norm(delta_pos), np.linalg.norm(delta_orn)])
-            error = dist_to_goal
-
-            # J = self.robot.get_jacobian()
-            # q_dot = np.linalg.pinv(J).dot(np.vstack([(curr_vel - targ_vel).reshape([3, 1]),
-            #                                          curr_ang_vel.reshape([3, 1])])).squeeze()
-
-            tau = self.kp * (delta_q) - self.kd * delta_q_dot
             if self.imp_control:
+                delta_q = targ_q - curr_q
+                delta_q_dot = q_dot - targ_q_dot
+
+                tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
+
                 self.robot.set_joint_torques(tau)
             else:
-                # self.robot.set_joints(targ_q, max_force=tau)
-                self.robot.set_torque_control()
-                p.setJointMotorControlArray(self.robot._robot_id,
-                                            jointIndices=self.robot.movable_joints,
-                                            controlMode=p.PD_CONTROL,
-                                            targetPositions=targ_q,
-                                            targetVelocities=targ_q_dot,
-                                            forces=self.robot.joint_torque_limits,
-                                            positionGains=self.kp,
-                                            velocityGains=self.kd,
-                                            physicsClientId=self.pcid)
+                self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.PD_CONTROL)
+
             self.step()
 
         # logging.debug(f"steps: {steps}, error: {error}")

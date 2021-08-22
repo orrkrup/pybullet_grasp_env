@@ -7,7 +7,7 @@ from grasp_simulation import GraspSimulation
 
 class BoxInBin(core.Env):
     def __init__(self, trial_len=10):
-        self.sim = GraspSimulation(imp_control=True)
+        self.sim = GraspSimulation(imp_control=False)
         self.action_space = Box(low=-np.pi/2., high=np.pi/2., shape=(6,))
 
         self.observation_space = Box(low=0, high=1.0, shape=(self.sim._image_height, self.sim._image_width, 3),

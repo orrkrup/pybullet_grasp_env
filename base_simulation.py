@@ -25,7 +25,7 @@ class BaseSimulation(object):
         self.plane_id = self.load_plane(checker_board=True)
 
         # Simulation Time
-        fps = 600
+        fps = 400
         self._control_dt = 1. / fps
         p.setTimeStep(self._control_dt, physicsClientId=self.pcid)
         self.t = 0.
