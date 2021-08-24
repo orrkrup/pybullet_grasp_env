@@ -313,6 +313,7 @@ class PandaRobot(object):
                                     jointIndices=self.finger_inds,
                                     controlMode=p.POSITION_CONTROL,
                                     targetPositions=self.open_finger_positions,
+                                    maxVelocity=0.1,
                                     physicsClientId=self.pcid)
 
     def close_gripper(self, action=None) -> None:

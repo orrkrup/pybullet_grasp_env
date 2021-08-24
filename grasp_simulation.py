@@ -54,7 +54,10 @@ class GraspSimulation(BaseSimulation):
             self.let_objects_settle(100)
 
     def move_to_reset(self, closed_gripper=False):
-        self.step_to_state(self.reset_ee_state, closed_gripper=closed_gripper)
+        target_q = self.robot.reset_joint_positions
+        if closed_gripper:
+            target_q[-2:] = [0.0, 0.0]
+        self.step_to_joint_state(target_q)
 
     def check_object_height(self, obj_id=None, height=None):
         if obj_id is None:
@@ -250,6 +253,9 @@ class GraspSimulation(BaseSimulation):
         goal_pos = np.array(state[:3], dtype=float)
         goal_orn = state[3:7]
 
+        targ_q = np.array(self.robot.inverse_kinematics(goal_pos, goal_orn))
+        targ_q_dot = np.zeros_like(targ_q)
+
         max_iter = self._max_move_steps if max_iter is None else max_iter
 
         if visualize_goal:
@@ -277,8 +283,6 @@ class GraspSimulation(BaseSimulation):
             error = np.linalg.norm(rel_vec)
 
             curr_q, q_dot = self.robot.get_robot_state()
-            targ_q = np.array(self.robot.inverse_kinematics(goal_pos, goal_orn))
-            targ_q_dot = np.zeros_like(q_dot)
 
             if self.imp_control:
                 delta_q = targ_q - curr_q
@@ -296,3 +300,45 @@ class GraspSimulation(BaseSimulation):
         logging.debug(f"{'Reached Goal' if error < self.error_thresh else 'Failed'}, error: {error}")
         if sid is not None:
             p.removeBody(sid, physicsClientId=self.pcid)
+
+    def step_to_joint_state(self, goal_state: np.ndarray, max_iter: int = None) -> bool:
+        """
+        perform motion planning and execute, reaching from current joint state to defined joint state
+        :param goal_state: a goal state to reach
+        :param max_iter: maximum number of iterations to perform
+        :return bool: whether a collision has happened
+        """
+        curr_q, _ = self.robot.get_robot_state()
+        targ_q = np.array(goal_state)
+        targ_q_dot = np.zeros_like(targ_q)
+
+        max_iter = self._max_move_steps if max_iter is None else max_iter
+
+        self.robot.set_torque_control()
+
+        error = np.linalg.norm(curr_q - targ_q)
+        steps = 0
+
+        while error > self.error_thresh:
+
+            steps += 1
+            if steps > max_iter:
+                logging.debug("failed to reach target")
+                break
+
+            curr_q, q_dot = self.robot.get_robot_state()
+            error = np.linalg.norm(curr_q - targ_q)
+
+            if self.imp_control:
+                delta_q = targ_q - curr_q
+                delta_q_dot = q_dot - targ_q_dot
+
+                tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
+
+                self.robot.set_joint_torques(tau)
+            else:
+                self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.PD_CONTROL)
+
+            self.step()
+
+        logging.debug(f"{'Reached Goal' if error < self.error_thresh else 'Failed'}, error: {error}")
