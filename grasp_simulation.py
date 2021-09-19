@@ -3,9 +3,8 @@ import numpy as np
 import pybullet as p
 from base_simulation import BaseSimulation
 from robot import PandaRobot
-from utils import PolyTraj
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class GraspSimulation(BaseSimulation):
@@ -57,7 +56,8 @@ class GraspSimulation(BaseSimulation):
         target_q = self.robot.reset_joint_positions
         if closed_gripper:
             target_q[-2:] = [0.0, 0.0]
-        self.step_to_joint_state(target_q)
+        err = self.step_to_joint_state(target_q)
+        return err
 
     def check_object_height(self, obj_id=None, height=None):
         if obj_id is None:
@@ -262,10 +262,12 @@ class GraspSimulation(BaseSimulation):
         else:
             sid = None
 
-        self.step_to_joint_state(targ_q, goal_vel=targ_q_dot, closed_gripper=closed_gripper)
+        error = self.step_to_joint_state(targ_q, goal_vel=targ_q_dot, closed_gripper=closed_gripper)
 
         if sid is not None:
             p.removeBody(sid, physicsClientId=self.pcid)
+
+        return error
 
     def step_to_joint_state(self, goal_state, goal_vel=None, max_iter=None, closed_gripper=False):
         """
@@ -312,3 +314,4 @@ class GraspSimulation(BaseSimulation):
             self.step()
 
         logging.debug(f"{'Reached Goal' if error < self.error_thresh else 'Failed'}, error: {error}")
+        return error

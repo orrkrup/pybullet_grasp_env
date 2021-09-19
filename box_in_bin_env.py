@@ -6,8 +6,8 @@ from grasp_simulation import GraspSimulation
 
 
 class BoxInBin(core.Env):
-    def __init__(self, trial_len=10):
-        self.sim = GraspSimulation(imp_control=False)
+    def __init__(self, trial_len=10, use_ui=True):
+        self.sim = GraspSimulation(imp_control=False, use_ui=use_ui)
         self.action_space = Box(low=-np.pi/2., high=np.pi/2., shape=(6,))
 
         self.observation_space = Box(low=0, high=1.0, shape=(self.sim._image_height, self.sim._image_width, 3),
@@ -35,10 +35,10 @@ class BoxInBin(core.Env):
 
     def step(self, act):
         # pre action
-        self.sim.step_to_state(act[0], closed_gripper=False)
+        er1 = self.sim.step_to_state(act[0], closed_gripper=False)
 
         #action
-        self.sim.step_to_state(act[1], closed_gripper=False)
+        er2 = self.sim.step_to_state(act[1], closed_gripper=False)
         self.sim.grasp()
 
         # # TODO: probably not what we want the robot to do with the object
@@ -48,7 +48,7 @@ class BoxInBin(core.Env):
         # post_act[3:7] = p.getQuaternionFromEuler((np.pi, 0., 0.))
         # self.sim.step_to_state(post_act, closed_gripper=True)
         #
-        self.sim.move_to_reset(closed_gripper=True)
+        er3 = self.sim.move_to_reset(closed_gripper=True)
         r = 1.0 if self.sim.check_object_height() else 0.0
         self.sim.release()
 
@@ -59,7 +59,7 @@ class BoxInBin(core.Env):
         images = self.sim.render(return_depth_img=True)
         self.obs = np.concatenate((images['rgb'], images['dep']), axis=-1)
 
-        info_dict = {}
+        info_dict = {"movement_error": np.mean((er1, er2, er3))}
 
         return self.obs, r, self.step_counter >= self.trial_len, info_dict
 
