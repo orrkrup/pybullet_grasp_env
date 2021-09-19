@@ -249,14 +249,11 @@ class GraspSimulation(BaseSimulation):
         :param visualize_goal: whether to show a little red circle at current gripper target position
         :return bool: whether a collision has happened
         """
-        curr_pos, curr_orn = self.robot.get_ee_state()
         goal_pos = np.array(state[:3], dtype=float)
         goal_orn = state[3:7]
 
         targ_q = np.array(self.robot.inverse_kinematics(goal_pos, goal_orn))
         targ_q_dot = np.zeros_like(targ_q)
-
-        max_iter = self._max_move_steps if max_iter is None else max_iter
 
         if visualize_goal:
             vis = p.createVisualShape(p.GEOM_SPHERE, radius=0.01, rgbaColor=[1, 0, 0, 0.5],
@@ -265,52 +262,26 @@ class GraspSimulation(BaseSimulation):
         else:
             sid = None
 
-        self.robot.set_torque_control()
+        self.step_to_joint_state(targ_q, goal_vel=targ_q_dot, closed_gripper=closed_gripper)
 
-        error = np.linalg.norm(goal_pos - curr_pos)
-        steps = 0
-
-        while error > self.error_thresh:
-
-            steps += 1
-            if steps > max_iter:
-                logging.debug("failed to reach target")
-                break
-
-            curr_pos, curr_orn = self.robot.get_ee_state()
-
-            rel_vec = goal_pos - curr_pos
-            error = np.linalg.norm(rel_vec)
-
-            curr_q, q_dot = self.robot.get_robot_state()
-
-            if self.imp_control:
-                delta_q = targ_q - curr_q
-                delta_q_dot = q_dot - targ_q_dot
-
-                tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
-
-                self.robot.set_joint_torques(tau)
-            else:
-                self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.PD_CONTROL)
-
-            self.step()
-
-        # logging.debug(f"steps: {steps}, error: {error}")
-        logging.debug(f"{'Reached Goal' if error < self.error_thresh else 'Failed'}, error: {error}")
         if sid is not None:
             p.removeBody(sid, physicsClientId=self.pcid)
 
-    def step_to_joint_state(self, goal_state: np.ndarray, max_iter: int = None) -> bool:
+    def step_to_joint_state(self, goal_state, goal_vel=None, max_iter=None, closed_gripper=False):
         """
         perform motion planning and execute, reaching from current joint state to defined joint state
         :param goal_state: a goal state to reach
+        :param goal_vel: optional: goal velocity for joints
         :param max_iter: maximum number of iterations to perform
         :return bool: whether a collision has happened
         """
         curr_q, _ = self.robot.get_robot_state()
         targ_q = np.array(goal_state)
-        targ_q_dot = np.zeros_like(targ_q)
+        if closed_gripper:
+            targ_q[-2:] = self.robot.closed_finger_positions
+        else:
+            targ_q[-2:] = self.robot.open_finger_positions
+        targ_q_dot = np.zeros_like(targ_q) if goal_vel is None else goal_vel
 
         max_iter = self._max_move_steps if max_iter is None else max_iter
 
@@ -323,7 +294,6 @@ class GraspSimulation(BaseSimulation):
 
             steps += 1
             if steps > max_iter:
-                logging.debug("failed to reach target")
                 break
 
             curr_q, q_dot = self.robot.get_robot_state()

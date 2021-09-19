@@ -40,11 +40,12 @@ class PandaRobot(object):
         self.movable_joints = [ind for ind, t in enumerate(joint_props['jointType']) if p.JOINT_FIXED != t]
         self.n_movable_joints = len(self.movable_joints)
 
-        self.joint_lower_bounds = np.array([joint_props['jointLowerLimit'][k] for k in self.movable_joints]) * 10.
-        self.joint_upper_bounds = np.array([joint_props['jointUpperLimit'][k] for k in self.movable_joints]) * 10.
+        self.joint_lower_bounds = np.array([joint_props['jointLowerLimit'][k] for k in self.movable_joints])
+        self.joint_upper_bounds = np.array([joint_props['jointUpperLimit'][k] for k in self.movable_joints])
         self.joint_torque_limits = np.array([joint_props['jointMaxForce'][k] for k in self.movable_joints])
         self.joint_vel_limits = np.array([joint_props['jointMaxVelocity'][k] for k in self.movable_joints])
-        self.joint_ranges = [10 * k for k in [5.8, 3.5, 5.8, 3.1, 5.8, 3.8, 5.8, 0.04, 0.04]]
+        # self.joint_ranges = [10 * k for k in [5.8, 3.5, 5.8, 3.1, 5.8, 3.8, 5.8, 0.04, 0.04]]
+        self.joint_ranges = [5.8, 3.5, 5.8, 3.1, 5.8, 3.8, 5.8, 0.04, 0.04]
         self.joint_frictions = [5.0, 2.0, 2.0, 0.5, 1.0, 0.5, 0.5, 0.0, 0.0]
         self.joint_damping = [10.0, 5.0, 5.0, 1.0, 2.0, 1.0, 1.0, 0.0, 0.0]
 
@@ -238,13 +239,17 @@ class PandaRobot(object):
                                     physicsClientId=self.pcid)
 
     def inverse_kinematics(self, position: np.ndarray, orientation: np.ndarray = None, max_iter: int = 50) -> np.ndarray:
+        coef = 20.
+        lb = coef * self.joint_lower_bounds
+        ub = coef * self.joint_upper_bounds
+        r = ub - lb
         if orientation is None:
             joint_positions = p.calculateInverseKinematics(self._robot_id,
                                                            endEffectorLinkIndex=self._end_effector_index,
                                                            targetPosition=position,
-                                                           lowerLimits=self.joint_lower_bounds.tolist(),
-                                                           upperLimits=self.joint_upper_bounds.tolist(),
-                                                           jointRanges=self.joint_ranges,
+                                                           lowerLimits=lb.tolist(),
+                                                           upperLimits=ub.tolist(),
+                                                           jointRanges=r.tolist(),
                                                            restPoses=self.reset_joint_positions,
                                                            maxNumIterations=max_iter,
                                                            physicsClientId=self.pcid)
@@ -253,9 +258,9 @@ class PandaRobot(object):
                                                            endEffectorLinkIndex=self._end_effector_index,
                                                            targetPosition=position,
                                                            targetOrientation=orientation,
-                                                           lowerLimits=self.joint_lower_bounds.tolist(),
-                                                           upperLimits=self.joint_upper_bounds.tolist(),
-                                                           jointRanges=self.joint_ranges,
+                                                           lowerLimits=lb.tolist(),
+                                                           upperLimits=ub.tolist(),
+                                                           jointRanges=r.tolist(),
                                                            restPoses=self.reset_joint_positions,
                                                            maxNumIterations=max_iter,
                                                            physicsClientId=self.pcid)
@@ -309,17 +314,18 @@ class PandaRobot(object):
         return len(collisions) > 0
 
     def open_gripper(self) -> None:
-        p.setJointMotorControlArray(self._robot_id,
-                                    jointIndices=self.finger_inds,
+        for finger, fpos in zip(self.finger_inds, self.open_finger_positions):
+            p.setJointMotorControl2(self._robot_id,
+                                    jointIndex=finger,
                                     controlMode=p.POSITION_CONTROL,
-                                    targetPositions=self.open_finger_positions,
+                                    targetPosition=fpos,
                                     maxVelocity=0.1,
                                     physicsClientId=self.pcid)
 
     def close_gripper(self, action=None) -> None:
         # move finger joints in position control
         if action is None:
-            action = [0.01, 0.01]
+            action = [0.005, 0.005]
 
         # Can't use p.setJointMotorControlArray since maxVelocity is critical for successful grasping
         for finger, act in zip(self.finger_inds, action):

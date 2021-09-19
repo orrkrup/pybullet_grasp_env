@@ -39,6 +39,8 @@ class BaseSimulation(object):
         self._image_height = image_height
 
         # Observation camera parameters
+        self.far = 4.
+        self.near = 0.01
         self._projection_matrix, self._view_matrix = self.calc_camera_params(distance=0.5, yaw=0., pitch=-89., fov=90)
 
         # UI/debug camera parameters
@@ -80,6 +82,8 @@ class BaseSimulation(object):
             view_matrix = p.computeViewMatrixFromYawPitchRoll(distance=distance, yaw=yaw, pitch=pitch, upAxisIndex=2,
                                                               cameraTargetPosition=target, roll=0,
                                                               physicsClientId=self.pcid)
+        self.far = far_val
+        self.near = near_val
         projection_matrix = p.computeProjectionMatrixFOV(fov=fov, aspect=1., nearVal=near_val, farVal=far_val,
                                                          physicsClientId=self.pcid)
         return projection_matrix, view_matrix
@@ -118,6 +122,7 @@ class BaseSimulation(object):
 
         if return_depth_img:
             depth_img = np.reshape(depth_img, (height, width, 1))
+            depth_img = self.far * self.near / (self.far - (self.far - self.near) * depth_img)
             ret_dict['dep'] = depth_img
 
         return ret_dict

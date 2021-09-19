@@ -42,17 +42,27 @@ def random_act():
     return act
 
 
+def semi_random_act():
+    act = np.zeros((2, 7))
+    act[:, 0] = np.random.uniform(-0.27, 0.27, size=(2,))
+    act[:, 1] = np.random.uniform(0.39, 0.81, size=(2,))
+    act[:, 2] = np.random.uniform(0.01, 0.14, size=(2,))
+    act[0, 2] = 0.2
+    z1 = np.random.uniform(-np.pi / 2., np.pi / 2.)
+    for ind in range(2):
+        act[ind, 3:7] = p.getQuaternionFromEuler((np.pi, 0.0, z1))
+    return act
+
+
 def test_act():
     act = np.zeros((2, 7))
-    act[:, 0] = np.array((-0.24, 0.24))
+    act[:, 0] = np.array((-0.2, 0.24))
     act[:, 1] = np.array((0.6, 0.6))
     act[:, 2] = np.array((0.04, 0.04))
     for ind in range(2):
         z1 = np.pi
         y1 = 0.0
         act[ind, 3:7] = p.getQuaternionFromEuler((z1, 0, 0))
-    print(act[0])
-    print(act[1])
     return act
 
 
@@ -66,7 +76,8 @@ if __name__ == '__main__':
         done = False
         while not done:
             if np.random.uniform() > 0.0:
-                act = test_act()
+                act = semi_random_act()
+                # act = test_act()
             else:
                 act = random_act()
 

@@ -29,7 +29,7 @@ class BoxInBin(core.Env):
         self.cubeset_id = self.sim.load_cubeset(7, mode='grid_cut')
         self.sim.let_objects_settle(steps=100)
 
-        self.obs = self.sim.render()
+        self.obs = self.sim.render(return_depth_img=True)
 
         return self.obs
 
