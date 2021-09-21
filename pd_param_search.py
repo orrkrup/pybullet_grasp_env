@@ -29,7 +29,7 @@ def mutate(kp, kd, thresh=0.5):
     if np.random.uniform() > thresh:
         kd = kd * np.random.uniform(0.5, 1.5, size=kd.size)
     if np.random.uniform() > thresh:
-        kd = kd * np.random.uniform(0.5, 1.5, size=kp.size)
+        kp = kp * np.random.uniform(0.5, 1.5, size=kp.size)
 
     return kp, kd
 
