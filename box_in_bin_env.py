@@ -65,3 +65,6 @@ class BoxInBin(core.Env):
 
     def render(self, mode='human'):
         return self.obs
+
+    def close(self):
+        self.sim.disconnect()

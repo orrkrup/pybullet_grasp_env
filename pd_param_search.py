@@ -21,6 +21,7 @@ def run_trial(kd, kp):
         _, _, done, info = env.step(act)
         errors.append(info['movement_error'])
 
+    env.close()
     return np.mean(errors)
 
 
@@ -71,8 +72,9 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
         kd_list.append(kd)
 
     for _ in trange(num_iterations):
-        p = Pool(num_workers)
-        errs = p.starmap(run_trial, zip(kp_list, kd_list))
+        pl = Pool(num_workers)
+        errs = pl.starmap(run_trial, zip(kp_list, kd_list))
+        pl.close()
 
         inds = np.argsort(errs)[:int(len(errs) / 2)]
 
@@ -96,12 +98,20 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
 
     return best_kp, best_kd, best_err
 
+
 if __name__ == '__main__':
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument('--workers', type=int, default=8, help='Number of workers to spawn')
+    parser.add_argument('--generations', type=int, default=1000, help='Number of evolutionary iterations to run')
+    args = parser.parse_args()
+
     init_kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
     init_kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
 
     # sequential_trial(init_kp, init_kd)
-    best_kp, best_kd, best_err = parallel_trial(init_kp, init_kd)
+    best_kp, best_kd, best_err = parallel_trial(init_kp, init_kd, num_workers=args.workers,
+                                                num_iterations=args.generations)
 
     print(f"KD: {best_kd}")
     print(f"KP: {best_kp}")
