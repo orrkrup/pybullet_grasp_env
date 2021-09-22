@@ -7,7 +7,7 @@ from grasp_test import semi_random_act
 from box_in_bin_env import BoxInBin
 
 
-def run_trial(kd, kp):
+def run_trial(kp, kd):
     env = BoxInBin(use_ui=False)
 
     env.sim.robot.kd = kd
@@ -71,32 +71,36 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
         kp_list.append(kp)
         kd_list.append(kd)
 
-    for _ in trange(num_iterations):
-        pl = Pool(num_workers)
-        errs = pl.starmap(run_trial, zip(kp_list, kd_list))
-        pl.close()
+    try:
+        with trange(num_iterations) as t:
+            for _ in t:
+                pl = Pool(num_workers)
+                errs = pl.starmap(run_trial, zip(kp_list, kd_list))
+                pl.close()
 
-        inds = np.argsort(errs)[:int(len(errs) / 2)]
+                inds = np.argsort(errs)[:int(len(errs) / 2)]
 
-        if errs[inds[0]] < best_err:
-            best_err = errs[inds[0]]
-            best_kp = kp_list[inds[0]]
-            best_kd = kd_list[inds[0]]
+                if errs[inds[0]] < best_err:
+                    best_err = errs[inds[0]]
+                    best_kp = kp_list[inds[0]]
+                    best_kd = kd_list[inds[0]]
 
-        new_kps = []
-        new_kds = []
-        for ind, (kp, kd) in enumerate(zip(kp_list, kd_list)):
-            if ind in inds:
-                new_kps.append(kp)
-                new_kds.append(kd)
-                m_kd, m_kp = mutate(kp, kd)
-                new_kps.append(m_kp)
-                new_kds.append(m_kd)
+                new_kps = []
+                new_kds = []
+                for ind, (kp, kd) in enumerate(zip(kp_list, kd_list)):
+                    if ind in inds:
+                        new_kps.append(kp)
+                        new_kds.append(kd)
+                        m_kd, m_kp = mutate(kp, kd)
+                        new_kps.append(m_kp)
+                        new_kds.append(m_kd)
 
-        kp_list = new_kps
-        kd_list = new_kds
+                kp_list = new_kps
+                kd_list = new_kds
 
-    return best_kp, best_kd, best_err
+                t.set_postfix(err=best_err)
+    finally:
+        return best_kp, best_kd, best_err
 
 
 if __name__ == '__main__':
@@ -112,7 +116,6 @@ if __name__ == '__main__':
     # sequential_trial(init_kp, init_kd)
     best_kp, best_kd, best_err = parallel_trial(init_kp, init_kd, num_workers=args.workers,
                                                 num_iterations=args.generations)
-
     print(f"KD: {best_kd}")
     print(f"KP: {best_kp}")
     print(f"error: {best_err}")
