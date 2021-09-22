@@ -25,13 +25,21 @@ def run_trial(kp, kd):
     return np.mean(errors)
 
 
-def mutate(kp, kd, thresh=0.5):
-    if np.random.uniform() > thresh:
-        kd = kd * np.random.uniform(0.5, 1.5, size=kd.size)
-    if np.random.uniform() > thresh:
-        kp = kp * np.random.uniform(0.5, 1.5, size=kp.size)
+def mutate(kp, kd, thresh=0.5, uniform=False):
+    if uniform:
+        per_kp = kp * np.random.uniform(0.5, 1.5, size=kp.size)
+        per_kd = kd * np.random.uniform(0.5, 1.5, size=kd.size)
+    else:
+        per_kp = np.clip(np.random.normal(loc=kp, scale=np.sqrt(kp)), 0.0, None)
+        per_kd = np.clip(np.random.normal(loc=kd, scale=np.sqrt(kd)), 0.0, None)
 
-    return kp, kd
+    dec_val = np.random.uniform()
+    if dec_val < thresh / 2.:
+        return kp, per_kd
+    elif dec_val < thresh:
+        return per_kp, kd
+    else:
+        return per_kp, per_kd
 
 
 def sequential_trial(best_kp, best_kd):
@@ -91,7 +99,7 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
                     if ind in inds:
                         new_kps.append(kp)
                         new_kds.append(kd)
-                        m_kd, m_kp = mutate(kp, kd)
+                        m_kp, m_kd = mutate(kp, kd)
                         new_kps.append(m_kp)
                         new_kds.append(m_kd)
 
