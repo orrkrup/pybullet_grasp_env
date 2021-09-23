@@ -25,7 +25,7 @@ def run_trial(kp, kd):
     return np.mean(errors)
 
 
-def mutate(kp, kd, thresh=0.5, uniform=False):
+def mutate(kp, kd, thresh=0.5, uniform=True):
     if uniform:
         per_kp = kp * np.random.uniform(0.5, 1.5, size=kp.size)
         per_kd = kd * np.random.uniform(0.5, 1.5, size=kd.size)
@@ -67,7 +67,7 @@ def sequential_trial(best_kp, best_kd):
     return best_kp, best_kd, best_err
 
 
-def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
+def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100, best_to_keep=2):
     kp_list = [init_kp]
     kd_list = [init_kd]
     best_kp = init_kp
@@ -86,7 +86,7 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
                 errs = pl.starmap(run_trial, zip(kp_list, kd_list))
                 pl.close()
 
-                inds = np.argsort(errs)[:int(len(errs) / 2)]
+                inds = np.argsort(errs)[:best_to_keep]
 
                 if errs[inds[0]] < best_err:
                     best_err = errs[inds[0]]
@@ -99,9 +99,10 @@ def parallel_trial(init_kp, init_kd, num_workers=8, num_iterations=100):
                     if ind in inds:
                         new_kps.append(kp)
                         new_kds.append(kd)
-                        m_kp, m_kd = mutate(kp, kd)
-                        new_kps.append(m_kp)
-                        new_kds.append(m_kd)
+                        for _ in range(int(num_workers / best_to_keep) - 1):
+                            m_kp, m_kd = mutate(kp, kd)
+                            new_kps.append(m_kp)
+                            new_kds.append(m_kd)
 
                 kp_list = new_kps
                 kd_list = new_kds
@@ -123,7 +124,7 @@ if __name__ == '__main__':
 
     # sequential_trial(init_kp, init_kd)
     best_kp, best_kd, best_err = parallel_trial(init_kp, init_kd, num_workers=args.workers,
-                                                num_iterations=args.generations)
+                                                num_iterations=args.generations, best_to_keep=1)
     print(f"KD: {best_kd}")
     print(f"KP: {best_kp}")
     print(f"error: {best_err}")
