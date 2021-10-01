@@ -60,8 +60,8 @@ class PandaRobot(object):
         self.last_gravity_comp = None
 
         # Joint control gains for PD controller:
-        # self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
-        # self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
+        self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
+        self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
 
         # Control gains found in evolutionary strategy
         # self.kp = [700., 700., 420., 375., 245., 175., 220., 0., 0.]

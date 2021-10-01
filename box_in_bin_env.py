@@ -13,6 +13,7 @@ class BoxInBin(core.Env):
         self.observation_space = Box(low=0, high=1.0, shape=(self.sim._image_height, self.sim._image_width, 3),
                                      dtype=np.float)
 
+        self.err_thresh = 0.01
         self.trial_len = trial_len
         self.trial_reward = 0
         self.step_counter = 0
@@ -37,9 +38,10 @@ class BoxInBin(core.Env):
         # pre action
         er1 = self.sim.step_to_state(act[0], closed_gripper=False)
 
-        #action
+        # action
         er2 = self.sim.step_to_state(act[1], closed_gripper=False)
-        self.sim.grasp()
+        if er2 < self.err_thresh:
+            self.sim.grasp()
 
         # # TODO: probably not what we want the robot to do with the object
         # vertical_offset = np.zeros_like(act[1])

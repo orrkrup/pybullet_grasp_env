@@ -275,6 +275,7 @@ class GraspSimulation(BaseSimulation):
         :param goal_state: a goal state to reach
         :param goal_vel: optional: goal velocity for joints
         :param max_iter: maximum number of iterations to perform
+        :param closed_gripper: whether gripper should be closed or not
         :return bool: whether a collision has happened
         """
         curr_q, _ = self.robot.get_robot_state()
@@ -302,14 +303,18 @@ class GraspSimulation(BaseSimulation):
             error = np.linalg.norm(curr_q - targ_q)
 
             if self.imp_control:
-                delta_q = targ_q - curr_q
-                delta_q_dot = q_dot - targ_q_dot
-
-                tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
-
-                self.robot.set_joint_torques(tau)
-            else:
+                # PyBullet native PD control
                 self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.PD_CONTROL)
+
+                # Hand crafted PD control
+                # delta_q = targ_q - curr_q
+                # delta_q_dot = q_dot - targ_q_dot
+                #
+                # tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
+                #
+                # self.robot.set_joint_torques(tau)
+            else:
+                self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.POSITION_CONTROL)
 
             self.step()
 
