@@ -44,7 +44,7 @@ class PandaRobot(object):
         self.joint_upper_bounds = np.array([joint_props['jointUpperLimit'][k] for k in self.movable_joints])
         self.joint_torque_limits = np.array([joint_props['jointMaxForce'][k] for k in self.movable_joints])
         self.joint_vel_limits = np.array([joint_props['jointMaxVelocity'][k] for k in self.movable_joints])
-        # self.joint_ranges = [10 * k for k in [5.8, 3.5, 5.8, 3.1, 5.8, 3.8, 5.8, 0.04, 0.04]]
+
         self.joint_ranges = [5.8, 3.5, 5.8, 3.1, 5.8, 3.8, 5.8, 0.04, 0.04]
         self.joint_frictions = [5.0, 2.0, 2.0, 0.5, 1.0, 0.5, 0.5, 0.0, 0.0]
         self.joint_damping = [10.0, 5.0, 5.0, 1.0, 2.0, 1.0, 1.0, 0.0, 0.0]
@@ -60,10 +60,10 @@ class PandaRobot(object):
         self.last_gravity_comp = None
 
         # Joint control gains for PD controller:
-        # self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
-        # self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
+        self.kp = np.array([600.0, 600.0, 600.0, 600.0, 250.0, 150.0, 50.0, 10.0, 10.0])
+        self.kd = np.array([50.0, 50.0, 50.0, 50.0, 30.0, 25.0, 15.0, 10.0, 10.0])
 
-        # Control gains found in evolutionary strategy
+        # Control gains found using evolutionary strategy
         # self.kp = [700., 700., 420., 375., 245., 175., 220., 0., 0.]
         # self.kd = [170., 170., 30., 25., 1., 20., 20., 0., 0.]
 
@@ -185,7 +185,9 @@ class PandaRobot(object):
         return jacobian
 
     def compute_gravity_comp(self):
-
+        """
+        Sets gravity compensation torque vector for robot joints
+        """
         mass_link_indices = list(range(self.n_joints))
         jp_list = [self.get_jacobian(link_index=ind)[:3] for ind in mass_link_indices]
         m_list = [p.getDynamicsInfo(self._robot_id, ind, physicsClientId=self.pcid)[0] for ind in mass_link_indices]
@@ -329,16 +331,18 @@ class PandaRobot(object):
     def close_gripper(self, action=None) -> None:
         # move finger joints in position control
         if action is None:
-            action = [0.005, 0.005]
+            action = [0.001, 0.001]
 
         # Can't use p.setJointMotorControlArray since maxVelocity is critical for successful grasping
         for finger, act in zip(self.finger_inds, action):
             p.setJointMotorControl2(self._robot_id, finger, p.POSITION_CONTROL, targetPosition=act, force=10.,
-                                    maxVelocity=0.1, physicsClientId=self.pcid)
+                                    targetVelocity=0.0, maxVelocity=0.05, physicsClientId=self.pcid)
 
     def check_contact_fingertips(self, obj_id):
-        # check if there is any contact on the internal part of the fingers, to control if they are correctly touching an object
-
+        """
+         check whether there is any contact on the internal part of the fingers,
+         to control if they are correctly touching an object
+        """
         # idx_fingers = [self._joint_name_to_ids['panda_finger_joint1'], self._joint_name_to_ids['panda_finger_joint2']]
         idx_fingers = [9, 10]
 

@@ -4,8 +4,6 @@ import pybullet as p
 from base_simulation import BaseSimulation
 from robot import PandaRobot
 
-# logging.basicConfig(level=logging.DEBUG)
-
 
 class GraspSimulation(BaseSimulation):
     def __init__(self, imp_control=True, use_ui=True):
@@ -54,9 +52,7 @@ class GraspSimulation(BaseSimulation):
 
     def move_to_reset(self, closed_gripper=False):
         target_q = self.robot.reset_joint_positions
-        if closed_gripper:
-            target_q[-2:] = [0.0, 0.0]
-        err = self.step_to_joint_state(target_q)
+        err = self.step_to_joint_state(target_q, closed_gripper=closed_gripper)
         return err
 
     def check_object_height(self, obj_id=None, height=None):
@@ -77,7 +73,16 @@ class GraspSimulation(BaseSimulation):
         return bin_id
 
     def load_cubeset(self, num_cubes, max_size=0.035, color=None, mass=None, friction=None, mode='grid_cut'):
-
+        """
+        Procedurally creates an object for picking made of cubes with different sizes and frictions.
+        :param num_cubes: number of elements in the object
+        :param max_size: maximum cube size
+        :param color: optional: set of colors to use for the different cube. Default: multicolored
+        :param mass: int or array-like: optional masses for cubes. Default: random between 0.1 and 1.0
+        :param friction: int or array-like: optional friction coefficient for cubes. Default: random between 0.4 and 1.5
+        :param mode: mode of object creation. Choose between 'grid_cut' and 'random_linear'
+        :return:
+        """
         # Create cube shapes and sizes
         if 'random_linear' in mode:
             cube_sizes = np.tile(np.random.uniform(0.01, max_size, size=(num_cubes,)), (3, 1)).transpose()
@@ -163,6 +168,15 @@ class GraspSimulation(BaseSimulation):
 
         return self.object_id
 
+    def _get_cube_pos_ori(self, cube_id):
+        num_joints = p.getNumJoints(self.object_id, physicsClientId=self.pcid)
+        assert -1 < cube_id < num_joints + 1, f"Cube ID out of range, requested {cube_id}, available {num_joints}"
+        if cube_id:
+            info = p.getLinkState(self.object_id, cube_id)
+        else:
+            info = p.getBasePositionAndOrientation(self.object_id)
+        return info[0], info[1]
+
     def clear_objects(self):
         if self.object_id is not None:
             p.removeBody(self.object_id, physicsClientId=self.pcid)
@@ -177,7 +191,7 @@ class GraspSimulation(BaseSimulation):
     def pos_grasp(self, action=None, obj_id=None):
         self.robot.close_gripper(action=action)
 
-        for ind in range(100):
+        for ind in range(300):
             self.step()
 
             # use object id if available to check contact force and eventually stop the finger motion
@@ -208,7 +222,7 @@ class GraspSimulation(BaseSimulation):
                           stop_at_collision: bool = False, closed_gripper: bool = True) -> bool:
         """
         perform motion planning and execute, reaching from current state to defined state
-        :param state: a goal state to reach
+        :param state: a goal cartesian state to reach
         :param max_iter: max number of iteration to perform
         :param eps: Euclidean distance tolerance for reaching to goal state
         :param stop_at_collision: whether to stop when colliding with some object
@@ -240,7 +254,8 @@ class GraspSimulation(BaseSimulation):
                       stop_at_collision: bool = False, closed_gripper: bool = True,
                       visualize_goal: bool = True) -> bool:
         """
-        perform motion planning and execute, reaching from current state to defined state
+        perform motion planning and execute, reaching from current state to defined state. Uses inverse kinematics to
+        translate to joint states before execution.
         :param state: a goal state to reach
         :param max_iter: max number of iteration to perform
         :param eps: Euclidean distance tolerance for reaching to goal state
@@ -262,11 +277,12 @@ class GraspSimulation(BaseSimulation):
         else:
             sid = None
 
-        error = self.step_to_joint_state(targ_q, goal_vel=targ_q_dot, closed_gripper=closed_gripper)
+        self.step_to_joint_state(targ_q, goal_vel=targ_q_dot, closed_gripper=closed_gripper)
 
         if sid is not None:
             p.removeBody(sid, physicsClientId=self.pcid)
 
+        error = np.linalg.norm(np.concatenate((goal_pos, goal_orn)) - np.concatenate(self.robot.get_ee_state()))
         return error
 
     def step_to_joint_state(self, goal_state, goal_vel=None, max_iter=None, closed_gripper=False):
@@ -275,6 +291,7 @@ class GraspSimulation(BaseSimulation):
         :param goal_state: a goal state to reach
         :param goal_vel: optional: goal velocity for joints
         :param max_iter: maximum number of iterations to perform
+        :param closed_gripper: whether gripper should be closed or not
         :return bool: whether a collision has happened
         """
         curr_q, _ = self.robot.get_robot_state()
@@ -302,14 +319,18 @@ class GraspSimulation(BaseSimulation):
             error = np.linalg.norm(curr_q - targ_q)
 
             if self.imp_control:
-                delta_q = targ_q - curr_q
-                delta_q_dot = q_dot - targ_q_dot
-
-                tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
-
-                self.robot.set_joint_torques(tau)
-            else:
+                # PyBullet native PD control
                 self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.PD_CONTROL)
+
+                # Hand crafted PD control; works, but is harder to tune
+                # delta_q = targ_q - curr_q
+                # delta_q_dot = q_dot - targ_q_dot
+                #
+                # tau = self.robot.kp * delta_q - self.robot.kd * delta_q_dot
+                #
+                # self.robot.set_joint_torques(tau)
+            else:
+                self.robot.set_joints(targ_q, joint_velocities=targ_q_dot, control_mode=p.POSITION_CONTROL)
 
             self.step()
 
