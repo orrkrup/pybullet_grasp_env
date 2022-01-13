@@ -1,6 +1,6 @@
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 from box_in_bin_env import BoxInBin
 from actions import *
