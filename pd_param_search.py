@@ -25,7 +25,7 @@ def run_trial(kp, kd):
     return np.mean(errors)
 
 
-def mutate(kp, kd, thresh=0.5, uniform=True):
+def mutate(kp, kd, thresh=0.5, uniform=False):
     if uniform:
         per_kp = kp * np.random.uniform(0.5, 1.5, size=kp.size)
         per_kd = kd * np.random.uniform(0.5, 1.5, size=kd.size)
@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     # sequential_trial(init_kp, init_kd)
     best_kp, best_kd, best_err = parallel_trial(init_kp, init_kd, num_workers=args.workers,
-                                                num_iterations=args.generations, best_to_keep=1)
+                                                num_iterations=args.generations, best_to_keep=2)
     print(f"KD: {best_kd}")
     print(f"KP: {best_kp}")
     print(f"error: {best_err}")
